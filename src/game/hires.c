@@ -27,10 +27,18 @@
 #define HR_COL  0x30000000u     /* guest scratch: N x colour buffer */
 #define HR_Z    0x31000000u     /* guest scratch: N x z-buffer (32-bit) */
 
-#define VP_A    0x611e60u       /* viewport block saved/restored around the pass */
-#define VP_A_N  0xc8u
-#define VP_B    0x6114a8u
-#define VP_B_N  0x28u
+/* viewport fields saved/restored around the pass.  NOT the camera, which the
+   frame updates during the pass: matrix 611e94..611ec0, angles 611f1c/611f24/
+   611f28, position 611f2c.. (restoring those rolled the camera back a frame:
+   the view shook while it turned, e.g. tracking a ship) */
+static const u32 vp_rng[][2] = {
+    {0x611e60u, 0x611e94u},     /* projection doubles: frustum tangents, x/y scale */
+    {0x611ec4u, 0x611f1cu},     /* window, clip, centre y, z pitch, offsets */
+    {0x611f20u, 0x611f24u},     /* centre x */
+    {0x6114a8u, 0x6114ccu},     /* buffer base, pitch, size */
+};
+#define VP_N 4
+#define VP_BYTES 0x200
 #define G_ZBUF  0x636f0cu
 #define G_BASE  0x6114acu
 #define G_PITCH 0x6114c0u
@@ -43,8 +51,32 @@
 
 u32 rt_hr_n = 1, rt_hr_k = 0, rt_hr_rowtab = 0;   /* recomp.py substitutions */
 
-static u8 save_a[VP_A_N], save_b[VP_B_N];
+static u8 save_vp[VP_BYTES], set_vp[VP_BYTES];   /* 1x values / what the pass set */
 static u32 save_z;
+
+static void vp_copy(u8 *dst, int to_mem)
+{
+    int o = 0;
+    for (int i = 0; i < VP_N; i++) {
+        u32 n = vp_rng[i][1] - vp_rng[i][0];
+        if (to_mem) memcpy(MEM + vp_rng[i][0], dst + o, n); else memcpy(dst + o, MEM + vp_rng[i][0], n);
+        o += (int)n;
+    }
+}
+
+/* back to 1x: a field the game changed during the pass is left as the game set it */
+static void vp_restore(void)
+{
+    int o = 0;
+    for (int i = 0; i < VP_N; i++) {
+        for (u32 a = vp_rng[i][0]; a < vp_rng[i][1]; a += 4, o += 4) {
+            u32 cur = RD32(a), set, old;
+            memcpy(&set, set_vp + o, 4); memcpy(&old, save_vp + o, 4);
+            if (cur == set) WR32(a, old);
+            else { static int n; if (n++ < 20) rt_log("hires: %08x changed during the pass (%08x -> %08x)\n", a, set, cur); }
+        }
+    }
+}
 static int active, n_cur, win_x, win_y, win_w, win_h;
 static u8 *lo_begin, *touched, *lo_end;      /* per 1x window pixel */
 static u8 *hr_pix, *hr_mask;                 /* full screen N x layer */
@@ -92,8 +124,7 @@ void N_hr_begin(void)
         static int lw, lh, ln;
         if (lw != w || lh != h || ln != n) { lw = w; lh = h; ln = n; rt_log("hires: 3D window %d,%d %dx%d at %dx\n", win_x, win_y, w, h, n); }
     }
-    memcpy(save_a, MEM + VP_A, VP_A_N);
-    memcpy(save_b, MEM + VP_B, VP_B_N);
+    vp_copy(save_vp, 0);
     save_z = RD32(G_ZBUF);
     int W = w * n;
     lo_begin = realloc(lo_begin, (size_t)w * h);
@@ -120,6 +151,7 @@ void N_hr_begin(void)
         memcpy(MEM + 0x611e74, &sx, 8); memcpy(MEM + 0x611e7c, &sy, 8);
     }
     WR32(G_ZBUF, HR_Z);
+    vp_copy(set_vp, 0);
     rt_hr_rowtab = HR_ROW;
     active = 1;
     orig();
@@ -135,10 +167,39 @@ void N_hr_end(void)
     orig();
 }
 
-/* 42769f: screen flush - never leave the viewport switched (safety) */
+/* Frame pacing.  The game times its frames in ticks of its 72 Hz timer
+ * (559554, +4 per tick): the space loop (4827c4) takes the ticks since the
+ * last frame and clamps 0 to 1.  A modern PC draws many frames per tick, so
+ * the steps went 1,1,1,4,1,1,4...: uneven, faster than real time, and the
+ * ship's steering (Delegate / AI) overshot - the view shook in combat.  On a
+ * 1995 PC every frame took at least one tick.  So the flush waits until the
+ * timer has moved on since the last frame: steady steps of 4 (72 fps max).
+ * sttng_pc.ini [game] SyncToGameTimer=0 switches it off. */
+#define G_TIMER 0x559554u
+static void pace_frame(void)
+{
+    extern int settings_int(const char *sec, const char *key, int def, int lo, int hi);
+    extern void irq_poll(void);
+    static u32 last;
+    static int on = -1;
+    if (on < 0) on = settings_int("game", "SyncToGameTimer", 1, 0, 1);
+    if (!on) return;
+    DWORD t0 = GetTickCount();
+    static int ticks = -1;
+    if (ticks < 0) { const char *e = getenv(ENV("PACE_TICKS")); ticks = e ? atoi(e) : 1; if (ticks < 1) ticks = 1; }
+    while ((s32)(RD32(G_TIMER) - last) < 4 * ticks && GetTickCount() - t0 < 200) {
+        irq_poll();
+        if ((s32)(RD32(G_TIMER) - last) < 4 * ticks) Sleep(1);
+    }
+    last = RD32(G_TIMER);
+}
+
+/* 42769f: screen flush - frame pacing; never leave the viewport switched (safety) */
 void N_hr_flush(void)
 {
+    u32 ra = RD32(cpu.r[R_ESP]);
     if (active) { rt_log("hires: pass not closed before the flush\n"); hr_finish(); }
+    if (ra >= 0x4827c4 && ra < 0x482ca1) pace_frame();     /* the space loop's own flush only */
     rt_wrap_orig("N_hr_flush", NULL)();
 }
 
@@ -147,8 +208,7 @@ static void hr_finish(void)
     if (active) {
         active = 0;
         int n = n_cur, w = win_w, h = win_h, W = w * n;
-        memcpy(MEM + VP_A, save_a, VP_A_N);
-        memcpy(MEM + VP_B, save_b, VP_B_N);
+        vp_restore();
         WR32(G_ZBUF, save_z);
         rt_hr_rowtab = 0;
         u32 base = RD32(G_BASE);
