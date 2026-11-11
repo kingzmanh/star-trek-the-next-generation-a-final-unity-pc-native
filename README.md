@@ -42,11 +42,27 @@ plays it - smooth shading, no colour banding, true black space.
   widescreen zoom, any window size, Alt+Enter fullscreen.
 - **Sound** – the game's HMI SOS sound system replaced by a native mixer (music, speech, effects, movie sound).
 
+## Installing
+
+1. Download **`Star Trek The Next Generation - A Final Unity PC Setup.exe`** from
+   [Releases](../../releases).
+2. Run it and point it at your game CD: the disc, an image (`.iso`, `.bin`/`.cue`, `.nrg`) or a folder
+   with a copy of the CD. Choose a folder and press Install.
+3. Start the game from the Start menu or desktop shortcut.
+
+The setup copies the CD (about 660 MB) and makes the hard-disk part of the game the way the DOS installer
+did. Nothing is downloaded. An uninstaller is included (Apps & features).
+
+**Options** (menu bar of the game window, or `sttng_pc.ini`): Internal Resolution 1x-4x (4x default),
+full-size and 16-bit colour movies (on), space combat frame rate (18 fps default: the enemy AI steering
+was made for 1990s frame rates, higher rates make enemy ships shake), upscale filter, sharpening,
+aspect ratio, widescreen. Alt+Enter switches fullscreen.
+
 ## Status
 
-Work in progress. Tested so far: intro and title movies, the bridge, the viewscreen, Tactical and the
-start of space combat, hailing, the pause panel (RGCD), saving. Not tested yet: away missions, loading,
-the full story. The installer is not ready yet.
+Work in progress (v0.1). Tested so far: intro and title movies, the bridge, the viewscreen, Tactical and
+space combat, hailing, the pause panel (RGCD), saving. Not tested yet: away missions, loading, the full
+story.
 
 ## Building
 

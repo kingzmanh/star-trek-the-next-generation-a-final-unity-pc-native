@@ -30,3 +30,4 @@ graphify*.log
 ghidra*.log
 prof.txt
 sound_out.wav
+*Setup*.exe

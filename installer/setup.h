@@ -38,3 +38,6 @@ u64 cd_total_bytes(CdSrc *c);
 int cd_copy_all(CdSrc *c, const char *dst, Progress *pr);
 u8 *cd_read(CdSrc *c, const char *rel, size_t *n);
 const char *cd_describe(CdSrc *c);
+typedef struct { int no, audio; u32 lba, nsec; } CdTrack;   /* lba as a drive counts it (MSF - 150) */
+int cd_tracks(CdSrc *c, CdTrack *out, int max);             /* images with a track table (.nrg, .cue) */
+int cd_read_raw(CdSrc *c, int track_index, u32 sec, u32 count, u8 *out);   /* 2352-byte sectors */

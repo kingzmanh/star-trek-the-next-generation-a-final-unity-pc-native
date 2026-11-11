@@ -1,5 +1,7 @@
-/* CD sources for the installer: an ISO 9660 image (.iso, raw .bin or .cue),
- * a CD drive or a folder holding a copy of the disc. */
+/* CD sources for the installer: an ISO 9660 image (.iso, raw .bin, .cue with
+ * its tracks, Nero .nrg), a CD drive or a folder holding a copy of the disc.
+ * Images also give the disc's audio tracks (cd_tracks / cd_read_raw) for
+ * games with CD music. */
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -7,13 +9,23 @@
 
 typedef struct { char name[64]; u32 lba, size; int dir; } IsoEnt;
 
+typedef struct {
+    CdTrack t;
+    char file[MAX_PATH * 2];      /* image file holding the track */
+    u64 off;                      /* file offset of its first sector (INDEX 01) */
+    u32 sector;                   /* bytes per sector in the file */
+} Trk;
+
 struct CdSrc {
     int image;
     char path[MAX_PATH * 2];      /* image file or root folder */
     HANDLE h;
     u32 sector, data_off;         /* bytes per sector, user data offset in it */
+    u64 base;                     /* file offset of the data track's first sector */
     u32 root_lba, root_size;
     char desc[MAX_PATH * 2 + 32];
+    Trk tr[100];
+    int ntr;
 };
 
 /* ---------- image access ---------- */
@@ -21,7 +33,7 @@ static int read_sectors(CdSrc *c, u32 lba, u32 count, u8 *out)
 {
     for (u32 i = 0; i < count; i++) {
         LARGE_INTEGER pos;
-        pos.QuadPart = (LONGLONG)(lba + i) * c->sector + c->data_off;
+        pos.QuadPart = (LONGLONG)c->base + (LONGLONG)(lba + i) * c->sector + c->data_off;
         DWORD r = 0;
         if (!SetFilePointerEx(c->h, pos, NULL, FILE_BEGIN) || !ReadFile(c->h, out + i * 2048, 2048, &r, NULL) || r != 2048)
             return 0;
@@ -109,6 +121,146 @@ static int open_image(CdSrc *c, const char *file)
     return 0;
 }
 
+
+static u64 file_size(const char *f)
+{
+    WIN32_FILE_ATTRIBUTE_DATA a;
+    if (!GetFileAttributesExA(f, GetFileExInfoStandard, &a)) return 0;
+    return ((u64)a.nFileSizeHigh << 32) | a.nFileSizeLow;
+}
+
+static u64 be64(const u8 *p) { u64 v = 0; for (int i = 0; i < 8; i++) v = v << 8 | p[i]; return v; }
+static u32 be32c(const u8 *p) { return (u32)p[0] << 24 | p[1] << 16 | p[2] << 8 | p[3]; }
+
+/* Nero image: chunk list at the end (NER5 + u64 offset / NERO + u32), DAO
+   track table (DAOX 64-bit / DAOI 32-bit offsets): sector size, mode,
+   index 0, index 1, end of every track */
+static int open_nrg(CdSrc *c, const char *file)
+{
+    HANDLE h = CreateFileA(file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+    u64 n = file_size(file);
+    u8 tail[12];
+    LARGE_INTEGER pos;
+    DWORD r;
+    pos.QuadPart = (LONGLONG)n - 12;
+    if (n < 12 || !SetFilePointerEx(h, pos, NULL, FILE_BEGIN) || !ReadFile(h, tail, 12, &r, NULL)) { CloseHandle(h); return 0; }
+    u64 at;
+    if (!memcmp(tail, "NER5", 4)) at = be64(tail + 4);
+    else if (!memcmp(tail + 4, "NERO", 4)) at = be32c(tail + 8);
+    else { CloseHandle(h); return 0; }
+    if (at >= n) { CloseHandle(h); return 0; }
+    size_t len = (size_t)(n - at);
+    u8 *d = malloc(len);
+    pos.QuadPart = (LONGLONG)at;
+    SetFilePointerEx(h, pos, NULL, FILE_BEGIN);
+    ReadFile(h, d, (DWORD)len, &r, NULL);
+    CloseHandle(h);
+    size_t p = 0;
+    u32 cur = 0;
+    while (p + 8 <= len) {
+        u32 cl = be32c(d + p + 4);
+        const u8 *q = d + p + 8;
+        int x = !memcmp(d + p, "DAOX", 4);
+        if (x || !memcmp(d + p, "DAOI", 4)) {
+            size_t es = x ? 42 : 30;
+            int first = q[20];
+            for (size_t e = 22; e + es <= cl && c->ntr < 99; e += es) {
+                const u8 *t = q + e;
+                u32 ss = (u32)(t[12] << 8 | t[13]), mode = t[14];
+                u64 i0 = x ? be64(t + 18) : be32c(t + 18), i1 = x ? be64(t + 26) : be32c(t + 22);
+                u64 end = x ? be64(t + 34) : be32c(t + 26);
+                if (!ss) continue;
+                Trk *k = &c->tr[c->ntr];
+                k->t.no = first + c->ntr;
+                k->t.audio = mode == 7;            /* 7 = audio, 0 = mode 1 */
+                cur += (u32)((i1 - i0) / ss);     /* pregap */
+                k->t.lba = cur - 150;
+                k->t.nsec = (u32)((end - i1) / ss);
+                cur += k->t.nsec;
+                k->off = i1;
+                k->sector = ss;
+                snprintf(k->file, sizeof k->file, "%s", file);
+                c->ntr++;
+            }
+        }
+        if (!memcmp(d + p, "END!", 4)) break;
+        p += 8 + cl;
+    }
+    free(d);
+    if (!c->ntr || c->tr[0].t.audio) return 0;
+    c->h = CreateFileA(file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    c->base = c->tr[0].off;
+    u32 ss = c->tr[0].sector;
+    if (probe(c, ss, 0) || (ss == 2352 && (probe(c, 2352, 16) || probe(c, 2352, 24)))) return 1;
+    CloseHandle(c->h);
+    c->h = INVALID_HANDLE_VALUE;
+    return 0;
+}
+
+/* .cue: FILE / TRACK nn AUDIO|MODEx/size / INDEX 01 mm:ss:ff - one file for
+   the whole disc or one per track */
+static void parse_cue(CdSrc *c, const char *cuepath, char *cue)
+{
+    char dir[MAX_PATH * 2], file[MAX_PATH * 2] = "";
+    snprintf(dir, sizeof dir, "%s", cuepath);
+    char *bs = strrchr(dir, '\\');
+    if (bs) bs[1] = 0; else dir[0] = 0;
+    u32 file_lba = 0, ss = 2352;
+    int cur = -1;
+    for (char *line = strtok(cue, "\r\n"); line; line = strtok(NULL, "\r\n")) {
+        while (*line == ' ' || *line == '\t') line++;
+        if (!strncmp(line, "FILE", 4)) {
+            if (file[0]) file_lba += (u32)(file_size(file) / ss);
+            char *q1 = strchr(line, '"'), *q2 = q1 ? strchr(q1 + 1, '"') : NULL;
+            if (!q2) continue;
+            *q2 = 0;
+            snprintf(file, sizeof file, "%s%s", strchr(q1 + 1, ':') ? "" : dir, q1 + 1);
+        } else if (!strncmp(line, "TRACK", 5) && c->ntr < 99) {
+            Trk *k = &c->tr[cur = c->ntr++];
+            memset(k, 0, sizeof *k);
+            k->t.no = atoi(line + 5);
+            k->t.audio = strstr(line, "AUDIO") != NULL;
+            ss = strstr(line, "/2048") ? 2048 : strstr(line, "/2336") ? 2336 : 2352;
+            k->sector = ss;
+            snprintf(k->file, sizeof k->file, "%s", file);
+        } else if (!strncmp(line, "INDEX 01", 8) && cur >= 0) {
+            int m = 0, s2 = 0, f = 0;
+            sscanf(line + 8, "%d:%d:%d", &m, &s2, &f);
+            u32 fr = (u32)((m * 60 + s2) * 75 + f);
+            c->tr[cur].off = (u64)fr * ss;
+            c->tr[cur].t.lba = file_lba + fr;
+        }
+    }
+    for (int i = 0; i < c->ntr; i++) {
+        Trk *k = &c->tr[i];
+        u64 end = (i + 1 < c->ntr && !_stricmp(c->tr[i + 1].file, k->file)) ? c->tr[i + 1].off : file_size(k->file);
+        k->t.nsec = end > k->off ? (u32)((end - k->off) / k->sector) : 0;
+    }
+}
+
+int cd_tracks(CdSrc *c, CdTrack *out, int max)
+{
+    int n = 0;
+    for (int i = 0; i < c->ntr && n < max; i++) out[n++] = c->tr[i].t;
+    return n;
+}
+
+/* raw 2352-byte sectors of track i (audio: 16-bit stereo PCM, 44.1 kHz) */
+int cd_read_raw(CdSrc *c, int i, u32 sec, u32 count, u8 *out)
+{
+    if (i < 0 || i >= c->ntr || c->tr[i].sector != 2352) return 0;
+    Trk *k = &c->tr[i];
+    HANDLE h = CreateFileA(k->file, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+    LARGE_INTEGER pos;
+    pos.QuadPart = (LONGLONG)(k->off + (u64)sec * 2352);
+    DWORD r = 0;
+    int ok = SetFilePointerEx(h, pos, NULL, FILE_BEGIN) && ReadFile(h, out, count * 2352, &r, NULL) && r == count * 2352;
+    CloseHandle(h);
+    return ok;
+}
+
 CdSrc *cd_open(const char *path)
 {
     CdSrc *c = calloc(1, sizeof *c);
@@ -124,7 +276,17 @@ CdSrc *cd_open(const char *path)
         return c;
     }
     const char *ext = strrchr(p, '.');
+    if (ext && !_stricmp(ext, ".nrg")) {
+        if (!open_nrg(c, p)) { free(c); return NULL; }
+        c->image = 1;
+        snprintf(c->path, sizeof c->path, "%s", p);
+        snprintf(c->desc, sizeof c->desc, "Nero image %s (%d tracks)", p, c->ntr);
+        return c;
+    }
     if (ext && !_stricmp(ext, ".cue")) {
+        size_t cn;
+        char *cue2 = (char *)read_file(p, &cn);
+        if (cue2) { cue2[cn] = 0; parse_cue(c, p, cue2); free(cue2); }
         /* FILE "name.bin" BINARY */
         size_t n;
         char *cue = (char *)read_file(p, &n);

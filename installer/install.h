@@ -16,6 +16,5 @@ int prebuilt_available(void);
 int game_is_cd(CdSrc *c);
 int game_install_files(const char *cd, const char *hd);   /* what the DOS installer put on C: */
 const char *game_icon_lbm(void);                          /* LBM on the CD for the exe icon, or NULL */
-typedef struct Progress Progress;
 int inject_icon_lbm(const char *exe, const u8 *lbm, size_t n);
 void shortcut_paths(char *startmenu, char *desktop);

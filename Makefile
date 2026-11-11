@@ -62,10 +62,13 @@ clean:
 
 # ---- release: game exe without the game's icon (setup puts it in from the
 # user's CD) and the setup program with that exe inside ----
+# file names can't hold ':' (titles like "Star Trek: ...")
+SETUP_NAME ?= $(subst :,,$(TITLE)) PC Setup.exe
 release: build/release/game.exe build/setup.exe
-	cp build/setup.exe "$(TITLE) PC Setup.exe"
+	cp build/setup.exe "$(SETUP_NAME)"
 
-build/release/game.exe: $(OBJS)
+# the release exe keeps the game icon when the dev build has one (ICON_SRC)
+build/release/game.exe: $(OBJS) $(RES_OBJ)
 	@mkdir -p build/release
 	$(CC) -mwindows -o $@ $^ $(LIBS)
 	strip $@
