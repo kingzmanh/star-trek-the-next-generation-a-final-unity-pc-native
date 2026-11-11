@@ -186,13 +186,16 @@ def descend(p, e, entries, noreturn, tables_out, strict=False):
                     t = op.imm & 0xffffffff
                     if t != e and t in entries:
                         f.tailcalls[a] = t
-                        # "push <continuation>; jmp <function>" = a hand-made call
+                        # "push <continuation>; jmp <function>" = a hand-made call.
+                        # The pushed address must be nearby code of this routine, not a
+                        # function pointer argument (A Final Unity 4b76b6: push free; jmp ...)
                         if len(lst) >= 2:
                             pi = p.insn(lst[-2])
                             if (pi.mnemonic == 'push' and pi.operands[0].type == X.X86_OP_IMM and
                                     p.in_code(pi.operands[0].imm & 0xffffffff)):
                                 c = pi.operands[0].imm & 0xffffffff
-                                f.pushcalls[a] = c
+                                if abs(c - a) < 0x1000:
+                                    f.pushcalls[a] = c
                                 succ.append(c)
                     else:
                         succ.append(t)
