@@ -44,7 +44,7 @@ plays it - smooth shading, no colour banding, true black space.
 
 ## Installing
 
-1. Download **`Star Trek The Next Generation - A Final Unity PC Setup.exe`** from
+1. Download **`Star-Trek-TNG-A-Final-Unity-PC-Setup.exe`** from
    [Releases](../../releases).
 2. Run it and point it at your game CD: the disc, an image (`.iso`, `.bin`/`.cue`, `.nrg`) or a folder
    with a copy of the CD. Choose a folder and press Install.
