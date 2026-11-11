@@ -16,3 +16,28 @@ void N_dbg_blit(void)
     }
     rt_wrap_orig("N_dbg_blit", NULL)();
 }
+
+/* 48f7cc: camera update - ST_CAMLOG=1 logs mode, subject ship, its target and the result per frame */
+#include <stdlib.h>
+#include <string.h>
+static float f32(u32 a) { float f; u32 v = RD32(a); memcpy(&f, &v, 4); return f; }
+void N_dbg_camera(void)
+{
+    rt_wrap_orig("N_dbg_camera", NULL)();
+    static int on = -1, n;
+    if (on < 0) on = getenv(ENV("CAMLOG")) != NULL;
+    if (!on || n > 4000) return;
+    u32 cam = RD32(0x611344);
+    if (!cam) return;
+    u32 mode = RD32(cam + 0x28), fn = mode ? RD32(mode) : 0, subj = mode ? RD32(mode + 4) : 0;
+    n++;
+    rt_log("cam t=%u fn=%08x ang=%u,%u,%u pos=%.1f,%.1f,%.1f", RD32(0x559554), fn, RD32(cam + 4), RD32(cam + 8), RD32(cam + 0xc),
+           f32(cam + 0x1c), f32(cam + 0x20), f32(cam + 0x24));
+    if (subj && subj < 0x10000000) {
+        rt_log(" subj=%08x p=%.2f,%.2f,%.2f a=%u,%u,%u", subj, f32(subj + 300), f32(subj + 0x130), f32(subj + 0x134),
+               RD32(subj + 0x150), RD32(subj + 0x154), RD32(subj + 0x158));
+        u32 tg = RD32(subj + 0x548);
+        if (tg && tg < 0x10000000) rt_log(" tgt=%08x p=%.2f,%.2f,%.2f", tg, f32(tg + 300), f32(tg + 0x130), f32(tg + 0x134));
+    }
+    rt_log("\n");
+}

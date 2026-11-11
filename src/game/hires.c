@@ -172,21 +172,43 @@ void N_hr_end(void)
  * last frame and clamps 0 to 1.  A modern PC draws many frames per tick, so
  * the steps went 1,1,1,4,1,1,4...: uneven, faster than real time, and the
  * ship's steering (Delegate / AI) overshot - the view shook in combat.  On a
- * 1995 PC every frame took at least one tick.  So the flush waits until the
- * timer has moved on since the last frame: steady steps of 4 (72 fps max).
- * sttng_pc.ini [game] SyncToGameTimer=0 switches it off. */
+ * 1995 PC every frame took several ticks.  The AI's steering also smooths
+ * over the last few FRAMES (48e045), so it is tuned for 1995 frame rates: at
+ * 72 fps a stationary enemy wobbled in a circle ~4 times a second (the shake
+ * in the enemy-POV view).  So the flush waits until the timer has moved on by
+ * a whole number of ticks since the last frame: steady steps, at a rate the
+ * steering was made for.  sttng_pc.ini [game] SpaceFps: 24 (default, steady
+ * ships, like 1995), 36, 72 (smoother, ships wobble), 0 = no limit. */
 #define G_TIMER 0x559554u
-static void pace_frame(void)
+static int space_ticks = -1;        /* 72 Hz ticks per space frame, 0 = off */
+
+int space_fps_get(void)
 {
     extern int settings_int(const char *sec, const char *key, int def, int lo, int hi);
+    if (space_ticks < 0) {
+        const char *e = getenv(ENV("PACE_TICKS"));
+        int fps = settings_int("game", "SpaceFps", 24, 0, 72);
+        space_ticks = e ? atoi(e) : fps <= 0 ? 0 : (72 + fps / 2) / fps;
+        if (space_ticks > 6) space_ticks = 6;
+    }
+    return space_ticks ? 72 / space_ticks : 0;
+}
+
+void space_fps_set(int fps)
+{
+    extern void settings_set_int(const char *sec, const char *key, int v);
+    settings_set_int("game", "SpaceFps", fps);
+    space_ticks = fps <= 0 ? 0 : (72 + fps / 2) / fps;
+}
+
+static void pace_frame(void)
+{
     extern void irq_poll(void);
     static u32 last;
-    static int on = -1;
-    if (on < 0) on = settings_int("game", "SyncToGameTimer", 1, 0, 1);
-    if (!on) return;
+    space_fps_get();
+    int ticks = space_ticks;
+    if (ticks <= 0) return;
     DWORD t0 = GetTickCount();
-    static int ticks = -1;
-    if (ticks < 0) { const char *e = getenv(ENV("PACE_TICKS")); ticks = e ? atoi(e) : 1; if (ticks < 1) ticks = 1; }
     while ((s32)(RD32(G_TIMER) - last) < 4 * ticks && GetTickCount() - t0 < 200) {
         irq_poll();
         if ((s32)(RD32(G_TIMER) - last) < 4 * ticks) Sleep(1);
