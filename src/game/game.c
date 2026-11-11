@@ -56,7 +56,9 @@ const char *game_default_ini(void)
            "; FullMovies: 1 = movies fill the window, 0 = the original small picture in the middle\r\n"
            "FullMovies=1\r\n"
            "; MovieColors: 16 = movies in 16-bit colour (no banding), 8 = the original 256 colours\r\n"
-           "MovieColors=16\r\n";
+           "MovieColors=16\r\n"
+           "; SyncToGameTimer: 1 = space frames wait for the game's 72 Hz timer (even steps, steady ships), 0 = off\r\n"
+           "SyncToGameTimer=1\r\n";
 }
 
 /* Video menu: the movie options (src/game/movies.c reads them per movie) */
