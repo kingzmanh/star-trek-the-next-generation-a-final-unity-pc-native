@@ -7,6 +7,29 @@ with Windows services.
 
 **This repository contains no game files.** You need your own copy of the game (the CD version).
 
+![The bridge](docs/media/bridge.jpg)
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Tactical at 4x](docs/media/tactical_4x.jpg) | ![Hailing a Garidian warbird](docs/media/hail.jpg) |
+| Tactical, 3D rendered at 4x | Hailing the Garidian warbird |
+| ![Pause panel](docs/media/rgcd.jpg) | ![Intro movie, full size](docs/media/title_movie.jpg) |
+| The pause panel (RGCD) | Intro movie, full size, 16-bit colour |
+
+### Internal Resolution: the 3D is rendered again at 4x
+
+![1x vs 4x](docs/media/resolution_1x_vs_4x.png)
+
+### Movies: 256 colours (DOS) vs 16-bit colour (this port)
+
+![Movie player: 256 colours vs 16-bit](docs/media/movies_256_vs_16bit.gif)
+
+Same frames of the intro movie side by side ([video, sharper](docs/media/movies_256_vs_16bit.mp4)).
+Left: the DOS game's 256-colour playback. Right: the same movie decoded in 16-bit colour, as this port
+plays it - smooth shading, no colour banding, true black space.
+
 ## What's new compared to DOS
 
 - **Real higher resolution for the 3D space scenes** – Video > Internal Resolution: 2x (1280x960),
