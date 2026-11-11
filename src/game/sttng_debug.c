@@ -40,4 +40,16 @@ void N_dbg_camera(void)
         if (tg && tg < 0x10000000) rt_log(" tgt=%08x p=%.2f,%.2f,%.2f", tg, f32(tg + 300), f32(tg + 0x130), f32(tg + 0x134));
     }
     rt_log("\n");
+    {   /* every ship in the scene: index, address, orientation */
+        u32 lst = RD32(0x611380);
+        if (lst && lst < 0x10000000) {
+            u32 cnt = RD32(lst);
+            rt_log("ships t=%u", RD32(0x559554));
+            for (u32 i = 0; i < cnt && i < 8; i++) {
+                u32 s = RD32(lst + 16 + i * 4);
+                if (s && s < 0x10000000) rt_log(" %u:%08x:%u,%u,%u", i, s, RD32(s + 0x150), RD32(s + 0x154), RD32(s + 0x158));
+            }
+            rt_log("\n");
+        }
+    }
 }

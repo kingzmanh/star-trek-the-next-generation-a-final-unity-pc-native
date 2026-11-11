@@ -57,9 +57,10 @@ const char *game_default_ini(void)
            "FullMovies=1\r\n"
            "; MovieColors: 16 = movies in 16-bit colour (no banding), 8 = the original 256 colours\r\n"
            "MovieColors=16\r\n"
-           "; SpaceFps: frame rate of space and combat - 24 = steady ships, as in 1995 (the AI steering was made\r\n"
-           ";           for it), 36 or 72 = smoother pictures but enemy ships wobble, 0 = no limit\r\n"
-           "SpaceFps=24\r\n";
+           "; SpaceFps: frame rate of space and combat. The enemy AI steering rocks a ship back and forth a fixed\r\n"
+           ";           number of frames, so more fps = faster rocking. 14 or 18 = slow, as in 1995 (18 default),\r\n"
+           ";           24 / 36 / 72 = smoother pictures but the rocking turns into shaking, 0 = no limit\r\n"
+           "SpaceFps=18\r\n";
 }
 
 /* Video menu: the movie options (src/game/movies.c reads them per movie) */
@@ -79,9 +80,11 @@ void game_video_menu_build(void *video_menu)
     AppendMenuW(m, MF_STRING, ID_MOVIE16, L"16-bit &colour movies  (no 256-colour banding)");
     {
         HMENU sp = CreatePopupMenu();
-        AppendMenuW(sp, MF_STRING, ID_SPACEFPS + 24, L"24 fps  (steady ships, as in 1995 - default)");
-        AppendMenuW(sp, MF_STRING, ID_SPACEFPS + 36, L"36 fps  (smoother, enemy ships sway)");
-        AppendMenuW(sp, MF_STRING, ID_SPACEFPS + 72, L"72 fps  (smoothest, enemy ships wobble)");
+        AppendMenuW(sp, MF_STRING, ID_SPACEFPS + 14, L"14 fps  (slowest rocking, like a 1995 PC)");
+        AppendMenuW(sp, MF_STRING, ID_SPACEFPS + 18, L"18 fps  (steady ships - default)");
+        AppendMenuW(sp, MF_STRING, ID_SPACEFPS + 24, L"24 fps  (smoother, ships rock a bit faster)");
+        AppendMenuW(sp, MF_STRING, ID_SPACEFPS + 36, L"36 fps  (smooth, enemy ships shake)");
+        AppendMenuW(sp, MF_STRING, ID_SPACEFPS + 72, L"72 fps  (smoothest, enemy ships shake fast)");
         AppendMenuW(m, MF_POPUP, (UINT_PTR)sp, L"Space combat &frame rate");
     }
 }
@@ -95,13 +98,17 @@ void game_menu_update(void *menu)
     /* 16-bit colour needs the full-size layout (the 640x480 screen stays 256 colours) */
     EnableMenuItem(m, ID_MOVIE16, MF_BYCOMMAND | (full ? MF_ENABLED : MF_GRAYED));
     int fps = space_fps_get();
-    CheckMenuRadioItem(m, ID_SPACEFPS + 24, ID_SPACEFPS + 72, ID_SPACEFPS + (fps >= 72 || fps == 0 ? 72 : fps >= 36 ? 36 : 24), MF_BYCOMMAND);
+    CheckMenuRadioItem(m, ID_SPACEFPS + 14, ID_SPACEFPS + 72,
+                       ID_SPACEFPS + (fps >= 72 || fps == 0 ? 72 : fps >= 36 ? 36 : fps >= 24 ? 24 : fps >= 18 ? 18 : 14), MF_BYCOMMAND);
 }
 
 int game_menu_command(int id)
 {
     if (id == ID_FULLMOVIES) { settings_set_int("game", "FullMovies", !settings_int("game", "FullMovies", 1, 0, 1)); return 1; }
     if (id == ID_MOVIE16) { settings_set_int("game", "MovieColors", settings_int("game", "MovieColors", 16, 8, 16) >= 15 ? 8 : 16); return 1; }
-    if (id == ID_SPACEFPS + 24 || id == ID_SPACEFPS + 36 || id == ID_SPACEFPS + 72) { space_fps_set(id - ID_SPACEFPS); return 1; }
+    if (id == ID_SPACEFPS + 14 || id == ID_SPACEFPS + 18 || id == ID_SPACEFPS + 24 || id == ID_SPACEFPS + 36 || id == ID_SPACEFPS + 72) {
+        space_fps_set(id - ID_SPACEFPS);
+        return 1;
+    }
     return 0;
 }

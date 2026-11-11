@@ -177,8 +177,11 @@ void N_hr_end(void)
  * 72 fps a stationary enemy wobbled in a circle ~4 times a second (the shake
  * in the enemy-POV view).  So the flush waits until the timer has moved on by
  * a whole number of ticks since the last frame: steady steps, at a rate the
- * steering was made for.  sttng_pc.ini [game] SpaceFps: 24 (default, steady
- * ships, like 1995), 36, 72 (smoother, ships wobble), 0 = no limit. */
+ * steering was made for.  sttng_pc.ini [game] SpaceFps: 18 (default, steady
+ * ships, like 1995), 14, 24, 36, 72 (smoother, ships shake), 0 = no limit.
+ * The ships rock +-9 degrees at every rate; the rocking takes a fixed number
+ * of frames, so its speed follows the frame rate (measured: 1.5 swings/s at
+ * 14 fps, 1.8 at 18, 2.6 at 24, 3.5 at 36, 5.2 at 72). */
 #define G_TIMER 0x559554u
 static int space_ticks = -1;        /* 72 Hz ticks per space frame, 0 = off */
 
@@ -187,7 +190,7 @@ int space_fps_get(void)
     extern int settings_int(const char *sec, const char *key, int def, int lo, int hi);
     if (space_ticks < 0) {
         const char *e = getenv(ENV("PACE_TICKS"));
-        int fps = settings_int("game", "SpaceFps", 24, 0, 72);
+        int fps = settings_int("game", "SpaceFps", 18, 0, 72);
         space_ticks = e ? atoi(e) : fps <= 0 ? 0 : (72 + fps / 2) / fps;
         if (space_ticks > 6) space_ticks = 6;
     }
