@@ -49,6 +49,16 @@ const char *game_about_text(void)
    own control setting in its config file - see the Alien Odyssey port */
 void game_menu_build(void *input_menu) { (void)input_menu; }
 
+/* written into a new sttng_pc.ini: the best options on (all switchable in the Video menu) */
+const char *game_default_ini(void)
+{
+    return "\r\n[game]\r\n"
+           "; FullMovies: 1 = movies fill the window, 0 = the original small picture in the middle\r\n"
+           "FullMovies=1\r\n"
+           "; MovieColors: 16 = movies in 16-bit colour (no banding), 8 = the original 256 colours\r\n"
+           "MovieColors=16\r\n";
+}
+
 /* Video menu: the movie options (src/game/movies.c reads them per movie) */
 #define ID_FULLMOVIES  2001
 #define ID_MOVIE16     2002

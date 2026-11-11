@@ -27,7 +27,7 @@ static const char default_ini[] =
     "[video]\r\n"
     "; 1 = start in fullscreen, 0 = in a window (Alt+Enter switches and is remembered)\r\n"
     "Fullscreen=1\r\n"
-    "; The game draws at 320x200; this is how that picture is brought up to your screen.\r\n"
+    "; How the game's own picture is brought up to your screen:\r\n"
     "; Filter: 4 xBR (smooth edges, sharp), 0 nearest (blocky), 1 bilinear (soft), 2 bicubic (smooth), 3 sharp bilinear\r\n"
     "Filter=4\r\n"
     "; Sharpen: contrast-adaptive sharpening after upscaling, 0 off, 1 low, 2 medium, 3 high\r\n"
@@ -36,10 +36,8 @@ static const char default_ini[] =
     "FXAA=0\r\n"
     "; Aspect: 0 4:3 like the original monitors, 1 stretch to the screen, 2 whole multiples (square pixels)\r\n"
     "Aspect=0\r\n"
-#if HAVE_HIRES3D
-    "; RenderScale: the game renders its live 3D at this multiple of its own resolution (1..6)\r\n"
+    "; RenderScale: the game's live 3D is rendered at this multiple of its own resolution (1 = original, up to 6)\r\n"
     "RenderScale=4\r\n"
-#endif
     "; Widescreen: 0 off, 1 zoom to the picture (removes black bars, never cuts or stretches),\r\n"
     ";             2 fill the screen (cuts some of the top and bottom, follows the action)\r\n"
     "Widescreen=1\r\n"
@@ -71,7 +69,13 @@ void settings_load(const char *exe_dir)
     snprintf(ini_path, sizeof ini_path, "%s\\" GAME_SHORT "_pc.ini", exe_dir);
     if (GetFileAttributesA(ini_path) == INVALID_FILE_ATTRIBUTES) {
         FILE *f = fopen(ini_path, "wb");
-        if (f) { fwrite(default_ini, 1, sizeof default_ini - 1, f); fclose(f); }
+        if (f) {
+            /* the game's own options (src/game: [game] section, best quality on) */
+            extern const char *game_default_ini(void) __attribute__((weak));
+            fwrite(default_ini, 1, sizeof default_ini - 1, f);
+            if (game_default_ini) fputs(game_default_ini(), f);
+            fclose(f);
+        }
     }
     opt_fullscreen = ini_int("video", "Fullscreen", 1, 0, 1);
     opt_filter = ini_int("video", "Filter", 4, 0, 4);
