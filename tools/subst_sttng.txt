@@ -1,0 +1,6 @@
+# Constants of STTNG.OVL's 3D library that become runtime expressions
+# (recomp.py): <insn addr> <constant> <C expression>.
+# The span-row table 636a14 holds 1024 rows; the N x pass (src/game/hires.c)
+# points it at a larger guest scratch table (rt_hr_rowtab, 0 = the game's).
+4bcd35 636a14   (rt_hr_rowtab ? rt_hr_rowtab : 0x636a14u)
+4bce7c 636a14   (rt_hr_rowtab ? rt_hr_rowtab : 0x636a14u)

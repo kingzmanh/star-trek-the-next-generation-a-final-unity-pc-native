@@ -1,0 +1,61 @@
+# Functions of SKIPIT.EXE replaced by native PC code (src/rt/native*.c).
+# <hex address> <C function> [wrap]   ("wrap": the original stays callable via rt_wrap_orig)
+# video: Mode X asm module (data object) -> native_modex.c
+48a059 N_mx_init
+48a0ec N_mx_init_keep
+48a181 N_mx_clear
+48a1fc N_mx_vsync
+48a213 N_mx_vsync
+48a222 N_mx_flip
+48a285 N_mx_show_d
+48a2a3 N_mx_split_setup
+48a3ea N_mx_split_off
+48a449 N_mx_split_on
+48a4ab N_mx_set_width
+48a4be N_mx_set_start
+48a4d7 N_mx_pan
+# outp() wrappers used for plane selection
+434768 N_mx_seq_index
+434771 N_mx_seq_data
+43477a N_mx_read_plane
+# asm sprite blitters
+4232cc N_blit_t80
+423361 N_blit_t160
+4233f9 N_blit_sh160
+4234bc N_blit_o80
+423552 N_blit_o160
+4235eb N_blit_t3
+423690 N_blit_o3
+# linear buffer -> planar page copies
+43478a N_cp_dash
+43481e N_cp_all
+434b7a N_cp_page
+434c8c N_cp_page
+434c03 N_cp_page150
+434da8 N_cp640_a
+434db0 N_cp640_b
+434db8 N_cp640_c
+434dc0 N_cp640_d
+447f14 N_pw_check wrap   # copy-protection answer check (test switch QU_TESTPW)
+# 3D view span/column drawers (self-patching unrolled loops on DOS)
+436134 N_span_full
+4361a6 N_span_half
+4397e0 N_col_opaque
+439843 N_col_holes
+# sound: the game's SOS module -> native mixer (native_sound.c)
+44a41c N_snd_init wrap
+44a9f3 N_snd_uninit wrap
+44a865 N_snd_play
+44a91f N_snd_play2
+44abc4 N_eng_start
+44aca6 N_eng_pitch
+44ad1d N_eng_stop
+44ad56 N_loopa_start
+44ae36 N_loopa_stop
+44ae7b N_loopb_start
+44af5b N_loopb_stop
+44b010 N_stream_start
+44b17c N_stream_pump
+44b27c N_stream_wait
+44b2cc N_stream_stop
+413250 N_text_input           # typed text entry (native: no interrupt points inside)

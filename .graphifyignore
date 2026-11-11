@@ -1,0 +1,12 @@
+gamedata/
+game/
+src/gen/
+re/*/ghidra/
+re/*/ghidra_proj/
+re/*/*_pe.exe
+shots/
+build/
+*.exe
+*.wav
+*.log
+re/

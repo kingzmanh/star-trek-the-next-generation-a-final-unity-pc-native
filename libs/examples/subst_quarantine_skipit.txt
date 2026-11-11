@@ -1,0 +1,35 @@
+# Constants of SKIPIT.EXE's 3D renderer that become runtime expressions
+# (recomp.py): <insn addr> <constant> <C expression>.
+# rt_hr_n = 1 / rt_hr_k = 0 except during the high-resolution pass
+# (src/game/hires.c), so the game's own pass is unchanged.
+
+# projection (x = X*256/z + 160, y = dh*256/z + 100)
+430ddd 8      8u + rt_hr_k
+430e05 8      8u + rt_hr_k
+430e15 a0     0xa0u * rt_hr_n
+430e28 64     0x64u * rt_hr_n
+430e51 8      8u + rt_hr_k
+430e7c 64     0x64u * rt_hr_n
+
+# floors (444184): distance = (h << 8) / rowtab[y], step shift param+9,
+# screen centre 160, the per-row table
+44450f 8      8u + rt_hr_k
+444718 a0     0xa0u * rt_hr_n
+4447e3 9      9u + rt_hr_k
+44482e 9      9u + rt_hr_k
+444811 4a87e8 rt_hr_rowtab
+444896 4a87e8 rt_hr_rowtab
+4448f9 4a87e8 rt_hr_rowtab
+444962 4a87e8 rt_hr_rowtab
+
+# walls: right clip at 320 columns
+43c330 140    0x140u * rt_hr_n
+43c337 140    0x140u * rt_hr_n
+43c7b6 140    0x140u * rt_hr_n
+43c7bd 140    0x140u * rt_hr_n
+43ccd4 140    0x140u * rt_hr_n
+43ccde 140    0x140u * rt_hr_n
+
+# sprite / object sizes (size = w * (k << 10) / z, (h << 7) / z)
+442774 a      0xau + rt_hr_k
+42dadb 7      7u + rt_hr_k

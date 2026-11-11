@@ -1,0 +1,18 @@
+# HMI SOS 4 digital API (cdecl) -> src/rt/native_sound.c
+4b37ac N_sos_start_sample
+4b3e6d N_sos_continue_sample
+4b3dc0 N_sos_stop_sample
+4b6c6f N_sos_sample_done
+4b5167 N_sos_sample_pos
+4b5231 N_sos_set_volume
+4b5577 N_sos_master_volume
+4b5d81 N_sos_init_system
+4b5ded N_sos_uninit_system
+4b5e19 N_sos_init_driver
+4b66d2 N_sos_uninit_driver
+4b6b9f N_sos_get_caps
+# real N x 3D (src/game/hires.c)
+4bcd34 N_hr_begin wrap   # frame 3D start: viewport -> N x
+486fac N_hr_end wrap     # HUD start: viewport back, merge
+42769f N_hr_flush wrap   # screen flush: safety close of the N x pass
+41a1c6 N_movie_play wrap  # movies in the 320x200 layout (full window) - src/game/movies.c

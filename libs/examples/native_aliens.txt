@@ -1,0 +1,25 @@
+# Functions replaced by native PC code (src/rt/native*.c).
+# <relocated address> <C function>
+45e280 N_kbd_typematic     # keyboard controller: set typematic rate
+# sound: Cryo sound system + HMI SOS digital API -> native mixer (native_sound.c)
+45d390 N_snd_init          # InitSoundSystem(rate, verbose)
+45d314 N_snd_uninit
+45d320 N_snd_uninit
+4683e3 N_sos_start_sample  # sosDIGIStartSample
+4689fc N_sos_stop_sample   # sosDIGIStopSample
+468e77 N_sos_set_volume    # sosDIGISetSampleVolume
+46911a N_sos_set_pan       # sosDIGISetPanLocation
+46904d N_sos_set_pitch     # sosDIGISetPitch
+46946f N_sos_master_volume # sosDIGISetMasterVolume
+4694cf N_sos_sample_done   # sosDIGISampleDone
+46f6a0 N_chain_intr        # Watcom _chain_intr
+473b02 N_gr_line           # Watcom graph: clipped line (stack-built inner loop)
+# music: Cryo MIDI module (HMI SOS MIDI) -> native HMP player on Windows MIDI (native_midi.c)
+459b80 N_midi_init
+459b50 N_midi_uninit
+459e90 N_midi_play         # PlaySong(name, loop)
+459d50 N_midi_stop
+459e30 N_midi_fade
+459e00 N_midi_volume
+459cb0 N_midi_pause
+459d00 N_midi_resume

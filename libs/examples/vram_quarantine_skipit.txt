@@ -1,0 +1,11 @@
+# Functions of SKIPIT.EXE that address the Mode X pages directly: recompiled with
+# VGA-window aware memory accessors (VRD8/VWR8, src/rt/cpu.h + native_modex.c)
+434d15   # page -> linear buffer (screen grab)
+438d30   # dashboard shape masks from page memory
+44f6a8   # save rectangle
+44f734   # save rectangle, greyed
+44f83c   # restore rectangle
+44f8dc   # rectangle -> 640-wide screen
+44f990   # rectangle where the page shows colour 4Fh
+4390f0   # 3D view planes -> page through the dashboard window masks
+4391f4   # the same, half detail

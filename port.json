@@ -1,0 +1,22 @@
+{
+  "title": "Star Trek: The Next Generation - A Final Unity",
+  "short": "sttng",
+  "id": "StarTrekTheNextGenerationAFinalUnity",
+  "env": "ST_",
+  "programs": [
+    {
+      "tag": "sttng",
+      "exe": "STTNG.OVL",
+      "load": "hd\\STTNG.OVL",
+      "dospath": "C:\\STTNG.OVL"
+    }
+  ],
+  "libs": [
+    "hmi_sos"
+  ],
+  "cd_files": [
+    "STTNG.ZIP",
+    "STTNGINS.ZIP"
+  ],
+  "icon_lbm": ""
+}
