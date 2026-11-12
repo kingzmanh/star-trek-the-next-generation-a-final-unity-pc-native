@@ -86,6 +86,15 @@ u32 heap_alloc(u32 size)
 
 static void rm_vec_init(void);
 
+/* ST_STATS: memory use for the leak check */
+static u32 n_dosfree, n_dpmifree;
+void dpmi_stats(char *buf, int n)
+{
+    extern u32 dpmi_nblocks(void);
+    snprintf(buf, n, "heap %uK dos %uK dpmi blocks %u frees dos %u dpmi %u",
+             (heap_next - 0x04000000u) >> 10, (dos_next - DOSMEM_BASE) >> 10, dpmi_nblocks(), n_dosfree, n_dpmifree);
+}
+
 void dpmi_init(void)
 {
     memset(seltab, 0, sizeof seltab);
@@ -163,8 +172,45 @@ void set_es(u16 v) { if (rm_active) rm_es = v; else rt_load_seg(S_ES, v); }
 #define SETSI(v) (cpu.r[R_ESI] = (cpu.r[R_ESI] & 0xffff0000u) | ((v) & 0xffff))
 #define SETDI(v) (cpu.r[R_EDI] = (cpu.r[R_EDI] & 0xffff0000u) | ((v) & 0xffff))
 
-static struct { u32 addr, size; } blocks[256];
+/* DPMI memory blocks (0501/0502/0503). Freed blocks give back their handle
+   and their memory (first fit, neighbours merged), so a long session that
+   allocates and frees blocks over and over doesn't run out. */
+#define NBLK 1024
+#define BLK_ROUND(s) (((s) + 0xfffu) & ~0xfffu)
+static struct { u32 addr, size, cap; u8 used; } blocks[NBLK];
 static u32 nblocks;
+static struct { u32 addr, size; } blk_free[NBLK];
+static u32 nfree;
+u32 dpmi_nblocks(void) { u32 c = 0; for (u32 i = 0; i < nblocks; i++) c += blocks[i].used; return c; }
+static u32 blk_slot(void)
+{
+    for (u32 i = 0; i < NBLK; i++) if (!blocks[i].used) return i;
+    return NBLK;
+}
+static u32 blk_alloc(u32 size)
+{
+    size = BLK_ROUND(size);
+    if (!size) size = 0x1000;
+    for (u32 i = 0; i < nfree; i++) {
+        if (blk_free[i].size < size) continue;
+        u32 a = blk_free[i].addr;
+        blk_free[i].addr += size;
+        blk_free[i].size -= size;
+        if (!blk_free[i].size) blk_free[i] = blk_free[--nfree];
+        memset(MEM + a, 0, size);
+        return a;
+    }
+    return heap_alloc(size);
+}
+static void blk_release(u32 a, u32 size)
+{
+    if (!size) return;
+    for (u32 i = 0; i < nfree; i++) {           /* merge with a neighbour */
+        if (blk_free[i].addr + blk_free[i].size == a) { blk_free[i].size += size; a = blk_free[i].addr; size = blk_free[i].size; blk_free[i] = blk_free[--nfree]; i = (u32)-1; continue; }
+        if (a + size == blk_free[i].addr) { size += blk_free[i].size; blk_free[i] = blk_free[--nfree]; i = (u32)-1; continue; }
+    }
+    if (nfree < NBLK) { blk_free[nfree].addr = a; blk_free[nfree].size = size; nfree++; }
+}
 static u32 rm_vec[256];
 
 /* real-mode vectors as a DOS machine with BIOS, DOS, a mouse driver and
@@ -222,7 +268,7 @@ void rt_int31(void)
         SETAX(seg); SETDX(sel);
         break;
     }
-    case 0x0101: break; /* free DOS memory (pool is not reused) */
+    case 0x0101: n_dosfree++; break; /* free DOS memory (pool is not reused) */
     case 0x0102: break;
     case 0x0200: { u32 v = rm_vec[cpu.r[R_EBX] & 0xff]; SETCX(v >> 16); SETDX(v); break; }
     case 0x0201: rm_vec[cpu.r[R_EBX] & 0xff] = ((u32)CX << 16) | DX; break;
@@ -251,25 +297,36 @@ void rt_int31(void)
         break; }
     case 0x0501: { /* allocate memory block */
         u32 sz = ((u32)BX << 16) | CX;
-        u32 a = heap_alloc(sz);
-        if (getenv(ENV("MEMLOG"))) rt_log("dpmi: alloc %u -> %08x\n", sz, a);
-        if (!a) { cpu.cf = 1; SETAX(0x8013); break; }
-        u32 h = nblocks < 256 ? nblocks++ : 255;
-        blocks[h].addr = a; blocks[h].size = sz;
+        u32 h = blk_slot();
+        u32 a = h < NBLK ? blk_alloc(sz) : 0;
+        if (getenv(ENV("MEMLOG"))) rt_log("dpmi: alloc %u -> %08x (handle %u)\n", sz, a, h);
+        if (!a) { cpu.cf = 1; SETAX(h < NBLK ? 0x8013 : 0x8016); break; }
+        blocks[h].addr = a; blocks[h].size = sz; blocks[h].cap = BLK_ROUND(sz); blocks[h].used = 1;
+        if (h >= nblocks) nblocks = h + 1;
         SETBX(a >> 16); SETCX(a); SETSI(0x100 + h); SETDI(0);
         break;
     }
-    case 0x0502: break;
-    case 0x0503: { /* resize: allocate new and copy */
+    case 0x0502: { /* free memory block: its memory and handle are reused */
+        u32 h = (cpu.r[R_ESI] & 0xffff) - 0x100;
+        n_dpmifree++;
+        if (getenv(ENV("MEMLOG"))) rt_log("dpmi: free handle %u\n", h);
+        if (h >= nblocks || !blocks[h].used) { cpu.cf = 1; SETAX(0x8023); break; }
+        blk_release(blocks[h].addr, blocks[h].cap);
+        blocks[h].used = 0;
+        break;
+    }
+    case 0x0503: { /* resize: in place when it fits, else move */
         u32 h = (cpu.r[R_ESI] & 0xffff) - 0x100;
         u32 sz = ((u32)BX << 16) | CX;
-        if (h >= nblocks) { cpu.cf = 1; SETAX(0x8023); break; }
+        if (h >= nblocks || !blocks[h].used) { cpu.cf = 1; SETAX(0x8023); break; }
         u32 a = blocks[h].addr;
-        if (sz > blocks[h].size) {
-            a = heap_alloc(sz);
+        if (BLK_ROUND(sz) > blocks[h].cap) {
+            a = blk_alloc(sz);
             if (!a) { cpu.cf = 1; SETAX(0x8013); break; }
-            memcpy(MEM + a, MEM + blocks[h].addr, blocks[h].size);
+            memcpy(MEM + a, MEM + blocks[h].addr, blocks[h].size < sz ? blocks[h].size : sz);
+            blk_release(blocks[h].addr, blocks[h].cap);
             blocks[h].addr = a;
+            blocks[h].cap = BLK_ROUND(sz);
         }
         blocks[h].size = sz;
         SETBX(a >> 16); SETCX(a);

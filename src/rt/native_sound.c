@@ -80,6 +80,7 @@ typedef struct {
 } Voice;
 
 static Voice voices[NVOICE];
+int sound_active_voices(void) { int c = 0; for (int i = 0; i < NVOICE; i++) if (voices[i].active) c++; return c; }
 static SDL_AudioDeviceID dev;
 static int master_vol = 32767;
 static int sound_up;
@@ -250,7 +251,7 @@ void N_sos_start_sample(void)
     unlock();
     {
         static int n;
-        if (n++ < 40) rt_log("sos start: h=%d size=%u chan=%u vol=%x flags=%x cb=%08x\n", h, RD32(ss + SS_SIZE),
+        if (n++ < 40 || getenv(ENV("SOSLOG"))) rt_log("sos start: h=%d size=%u chan=%u vol=%x flags=%x cb=%08x\n", h, RD32(ss + SS_SIZE),
                              RD32(ss + SS_CHANNEL), RD32(ss + SS_VOLUME), flags, RD32(ss + SS_CB));
     }
     cpu.r[R_EAX] = (u32)h;
@@ -293,6 +294,7 @@ void N_sos_stop_sample(void)
     Voice *v = voice(ARG(1));
     if (v) { free_bufs(v); v->active = 0; }
     unlock();
+    if (getenv(ENV("SOSLOG"))) rt_log("sos stop: h=%u\n", ARG(1));
     cpu.r[R_EAX] = 0;
     RET(0);
 }
@@ -430,6 +432,7 @@ void sound_service(void)
             }
         }
         unlock();
+        if ((fire || done) && getenv(ENV("SOSLOG"))) rt_log("sos cb: h=%d action=%u cb=%08x\n", h, done ? A_DONE : action, cb);
         if (cb && (fire || done)) call_cb(cb, done ? A_DONE : action, (u32)h);
     }
     busy = 0;

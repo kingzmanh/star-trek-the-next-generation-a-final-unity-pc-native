@@ -21,6 +21,7 @@ static int cur_drive = 2;             /* C: */
 static char cwd[26][128];
 static u32 dta = 0x1080;              /* inside the PSP by default */
 static HANDLE handles[64];
+int dos_open_files(void) { int c = 0; for (int i = 5; i < 64; i++) if (handles[i]) c++; return c; }
 static int last_ret;
 
 static const char *drive_root(int drv, int which)

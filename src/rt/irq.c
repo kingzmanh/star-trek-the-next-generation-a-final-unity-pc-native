@@ -304,6 +304,21 @@ void irq_poll(void)
             }
         }
     }
+    {   /* ST_STATS=<ms>: log memory / files / voices (leak check) */
+        static u64 next_st;
+        static int st_ms = -1;
+        if (st_ms < 0) { const char *e = getenv(ENV("STATS")); st_ms = e ? atoi(e) : 0; }
+        if (st_ms > 0 && SDL_GetTicks64() >= next_st) {
+            extern void dpmi_stats(char *, int);
+            extern int dos_open_files(void);
+            extern int __attribute__((weak)) sound_active_voices(void);
+            char b[160];
+            next_st = SDL_GetTicks64() + st_ms;
+            dpmi_stats(b, sizeof b);
+            rt_log("stats t=%llu %s files %d voices %d\n", (unsigned long long)SDL_GetTicks64(), b,
+                   dos_open_files(), sound_active_voices ? sound_active_voices() : -1);
+        }
+    }
     { extern void sound_poll(void); sound_poll(); }
     input_pump();
     { extern void mouse_events_deliver(void); mouse_events_deliver(); }

@@ -53,3 +53,27 @@ void N_dbg_camera(void)
         }
     }
 }
+
+/* 492bc8: status message (cdecl panel, far? text): ST_MSGLOG=1 logs them */
+static int msglog(void) { static int on = -1; if (on < 0) on = getenv(ENV("MSGLOG")) != NULL; return on; }
+void N_dbg_msg(void)
+{
+    if (msglog()) {
+        u32 s = RD32(cpu.r[R_ESP] + 8);
+        char b[64]; int i;
+        for (i = 0; i < 63 && s && s < 0x10000000 && RD8(s + i) >= 32; i++) b[i] = (char)RD8(s + i);
+        b[i] = 0;
+        rt_log("msg t=%u panel=%u '%s'\n", RD32(0x559554), RD32(cpu.r[R_ESP] + 4), b);
+    }
+    rt_wrap_orig("N_dbg_msg", NULL)();
+}
+void N_dbg_warp(void)
+{
+    if (msglog()) rt_log("warp1 t=%u ship=%08x fb74=%u\n", RD32(0x559554), RD32(cpu.r[R_ESP] + 4), RD32(0x60fb74));
+    rt_wrap_orig("N_dbg_warp", NULL)();
+}
+void N_dbg_warp2(void)
+{
+    if (msglog()) rt_log("warp2 t=%u ship=%08x\n", RD32(0x559554), RD32(cpu.r[R_ESP] + 4));
+    rt_wrap_orig("N_dbg_warp2", NULL)();
+}

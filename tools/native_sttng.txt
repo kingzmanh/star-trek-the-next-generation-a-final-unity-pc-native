@@ -17,3 +17,6 @@
 42769f N_hr_flush wrap   # screen flush: safety close of the N x pass
 41a1c6 N_movie_play wrap  # movies in the 320x200 layout (full window) - src/game/movies.c
 48f7cc N_dbg_camera wrap  # debug: ST_CAMLOG=1 camera log
+492bc8 N_dbg_msg wrap     # debug: ST_MSGLOG=1 logs the game's status messages (Tactical/Engineering)
+48e8c1 N_dbg_warp wrap    # debug: ST_MSGLOG=1 logs warp engage calls
+48ef28 N_dbg_warp2 wrap   # debug: ST_MSGLOG=1 logs warp engage (2) calls
